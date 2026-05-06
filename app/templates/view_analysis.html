@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Results - {{ analysis.original_filename }}{% endblock %}
+
+{% block content %}
+<div class="analysis-page">
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="{{ url_for('main.dashboard') }}">Dashboard</a> / Analysis Results
+        </div>
+
+        <div class="analysis-header">
+            <div class="analysis-title">
+                <h1>{{ analysis.original_filename }}</h1>
+                <p class="analysis-date">Analyzed on {{ analysis.analyzed_at.strftime('%B %d, %Y at %H:%M') }}</p>
+            </div>
+            {% if analysis.has_hidden_data %}
+            <div class="alert-badge badge-danger">⚠ Hidden Data Detected</div>
+            {% else %}
+            <div class="alert-badge badge-success">✓ Clean File</div>
+            {% endif %}
+        </div>
+
+        <!-- Overall Results -->
+        <div class="result-card">
+            <h2>Overall Analysis</h2>
+            <div class="confidence-display">
+                <div
+                    class="confidence-circle {% if analysis.confidence_score > 70 %}high{% elif analysis.confidence_score > 40 %}medium{% else %}low{% endif %}">
+                    <span class="confidence-number">{{ "%.1f"|format(analysis.confidence_score) }}%</span>
+                    <span class="confidence-label">Confidence</span>
+                </div>
+                <div class="confidence-info">
+                    <h3>Detection Confidence: {{ "%.1f"|format(analysis.confidence_score) }}%</h3>
+                    {% if analysis.confidence_score > 70 %}
+                    <p class="text-danger">⚠️ <strong>High probability</strong> of hidden data detected. Further
+                        investigation recommended.</p>
+                    {% elif analysis.confidence_score > 40 %}
+                    <p class="text-warning">⚡ <strong>Moderate suspicion</strong> of steganographic content. Manual
+                        review advised.</p>
+                    {% else %}
+                    <p class="text-success">✓ File appears <strong>clean</strong> with low indication of hidden data.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- File Information -->
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>File Details</h3>
+                <div class="info-list">
+                    <div class="info-item">
+                        <span class="info-label">Type:</span>
+                        <span class="info-value">{{ analysis.file_type.upper() }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Size:</span>
+                        <span class="info-value">{{ "%.2f"|format(analysis.file_size / 1024) }} KB</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Dimensions:</span>
+                        <span class="info-value">{{ analysis.image_width }} × {{ analysis.image_height }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Mode:</span>
+                        <span class="info-value">{{ analysis.image_mode }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>Detection Scores</h3>
+                <div class="score-list">
+                    <div class="score-item">
+                        <div class="score-header">
+                            <span class="score-label">LSB Detection</span>
+                            <span class="score-value">{{ "%.1f"|format(analysis.lsb_detection_score) }}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill {% if analysis.lsb_detection_score > 70 %}bg-danger{% elif analysis.lsb_detection_score > 40 %}bg-warning{% else %}bg-success{% endif %}"
+                                style="width: {{ analysis.lsb_detection_score }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="score-item">
+                        <div class="score-header">
+                            <span class="score-label">Statistical Analysis</span>
+                            <span class="score-value">{{ "%.1f"|format(analysis.statistical_score) }}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill {% if analysis.statistical_score > 70 %}bg-danger{% elif analysis.statistical_score > 40 %}bg-warning{% else %}bg-success{% endif %}"
+                                style="width: {{ analysis.statistical_score }}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="score-item">
+                        <div class="score-header">
+                            <span class="score-label">ML Detection</span>
+                            <span class="score-value">{{ "%.1f"|format(analysis.ml_detection_score) }}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill {% if analysis.ml_detection_score > 70 %}bg-danger{% elif analysis.ml_detection_score > 40 %}bg-warning{% else %}bg-success{% endif %}"
+                                style="width: {{ analysis.ml_detection_score }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Extraction Results -->
+        {% if analysis.extracted_data_available %}
+        <div class="extraction-card">
+            <h2>🔓 Extracted Hidden Data</h2>
+            <p class="extraction-subtitle">The following file(s) were detected hidden inside this image:</p>
+
+            <div class="detected-files-list">
+                <div class="detected-file-row">
+                    <div class="det-file-icon">
+                        {% set dtype = (analysis.extracted_data_type or '')|lower %}
+                        {% set fname = (analysis.hidden_filename or '')|lower %}
+                        {% if 'executable' in dtype or fname.endswith('.exe') or fname.endswith('.dll') or fname.endswith('.elf') %}⚙️
+                        {% elif 'zip' in dtype or 'rar' in dtype or '7-zip' in dtype or 'cab' in dtype or 'archive' in dtype %}📦
+                        {% elif 'pdf' in dtype %}📕
+                        {% elif 'office' in dtype or fname.endswith('.doc') or fname.endswith('.docx') %}📝
+                        {% elif 'text' in dtype %}📄
+                        {% elif 'image' in dtype or 'png' in dtype or 'jpg' in dtype %}🖼️
+                        {% elif 'audio' in dtype %}🎵
+                        {% elif 'xml' in dtype %}📋
+                        {% elif 'json' in dtype %}🗂️
+                        {% elif 'html' in dtype %}🌐
+                        {% else %}📁{% endif %}
+                    </div>
+                    <div class="det-file-info">
+                        <span class="det-file-name">
+                            {% if analysis.hidden_filename %}
+                                {{ analysis.hidden_filename }}
+                            {% elif 'zip' in (analysis.extracted_data_type or '')|lower %}
+                                extracted_data.zip
+                            {% elif 'text' in (analysis.extracted_data_type or '')|lower %}
+                                extracted_data.txt
+                            {% else %}
+                                extracted_data.bin
+                            {% endif %}
+                        </span>
+                        <div class="det-file-meta">
+                            <span class="det-badge det-type">{{ analysis.extracted_data_type or 'Unknown' }}</span>
+                            <span class="det-badge det-size">
+                                {% if (analysis.extracted_data_size or 0) >= 1024 %}
+                                    {{ "%.2f"|format((analysis.extracted_data_size or 0) / 1024) }} KB
+                                {% else %}
+                                    {{ analysis.extracted_data_size or 0 }} bytes
+                                {% endif %}
+                            </span>
+                            <span class="det-badge det-method">{{ analysis.extraction_method }}</span>
+                        </div>
+                    </div>
+                    <div class="det-file-action">
+                        <a href="{{ url_for('main.download_extracted', analysis_id=analysis.id) }}"
+                           class="btn btn-primary btn-small">⬇️ Download</a>
+                    </div>
+                </div>
+            </div>
+
+            <p class="det-note">⚠️ This file was hidden inside the scanned image using steganography techniques.</p>
+        </div>
+        {% endif %}
+
+        <!-- Actions -->
+        <div class="actions-section">
+            <a href="{{ url_for('main.analyze') }}" class="btn btn-primary">Analyze Another File</a>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+
+<style>
+.extraction-subtitle {
+    color: #94a3b8;
+    margin: 0.5rem 0 1.25rem;
+    font-size: 0.95rem;
+}
+.detected-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+.detected-file-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    transition: background 0.2s;
+}
+.detected-file-row:hover {
+    background: rgba(99,102,241,0.08);
+    border-color: rgba(99,102,241,0.35);
+}
+.det-file-icon {
+    font-size: 2.2rem;
+    flex-shrink: 0;
+}
+.det-file-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    overflow: hidden;
+}
+.det-file-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    word-break: break-all;
+}
+.det-file-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.det-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.15rem 0.55rem;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.det-type  { background: rgba(99,102,241,0.2); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.35); }
+.det-size  { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+.det-method{ background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+.det-file-action {
+    flex-shrink: 0;
+}
+.det-note {
+    font-size: 0.82rem;
+    color: #f87171;
+    margin-top: 0.5rem;
+    padding: 0.6rem 1rem;
+    background: rgba(239,68,68,0.08);
+    border-left: 3px solid #ef4444;
+    border-radius: 4px;
+}
+</style>
+
+
+{% endblock %}
