@@ -66,6 +66,7 @@ def _auto_migrate_db():
     migrations = {
         'analysis': [
             ('hidden_filename', 'VARCHAR(255)'),
+            ('carved_files',    'TEXT'),
         ],
     }
 

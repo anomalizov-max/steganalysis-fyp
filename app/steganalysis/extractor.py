@@ -154,6 +154,12 @@ class DataExtractor:
                 with open(output_path, 'wb') as f:
                     f.write(appended)
 
+                # ── Step 2: File Carving ──────────────────────────────────
+                # Scan the raw blob for known magic-byte signatures so that
+                # multi-payload attacks (PDF + ZIP + EXE inside one blob)
+                # are listed individually instead of showing a single .bin.
+                carved = self._carve_files_from_blob(appended)
+
                 return {
                     'extracted': True,
                     'method': f'Append-after-EOF ({fmt})',
@@ -161,7 +167,8 @@ class DataExtractor:
                     'data_size': len(appended),
                     'data_preview': self._get_data_preview(appended),
                     'data_type': data_type,
-                    'hidden_filename': hidden_name
+                    'hidden_filename': hidden_name,
+                    'carved_files': carved          # list of dicts, may be empty
                 }
         except Exception:
             pass
@@ -638,3 +645,75 @@ class DataExtractor:
         # OpenStego uses LSB but with specific patterns
         # This is a simplified version
         return {'extracted': False, 'method': 'OpenStego Pattern'}
+
+    # ------------------------------------------------------------------ #
+    #  Step 2 — File Carving: scan blob for embedded file signatures      #
+    # ------------------------------------------------------------------ #
+    def _carve_files_from_blob(self, blob: bytes) -> list:
+        """
+        Scan *blob* for known file-magic signatures and return a list of
+        carved file descriptors.
+
+        Each descriptor is a dict::
+
+            {
+                'filename':    str,   # e.g. 'carved_01_PDF Document.pdf'
+                'description': str,   # e.g. 'PDF Document'
+                'extension':   str,   # e.g. '.pdf'
+                'offset':      int,   # byte offset inside the blob
+                'size':        int,   # bytes from this sig to the next (or EOF)
+                'magic_hex':   str,   # e.g. '25 50 44 46'
+            }
+
+        If fewer than 2 distinct signatures are found the result is an empty
+        list — in that case the blob itself is already correctly typed and the
+        caller should just display it as a single file.
+        """
+        # Collect all (offset, magic, ext, description) hits
+        hits = []
+        for magic, ext, description in self.FILE_SIGNATURES:
+            start = 0
+            while True:
+                pos = blob.find(magic, start)
+                if pos == -1:
+                    break
+                hits.append((pos, magic, ext, description))
+                start = pos + 1  # allow overlapping searches
+
+        if not hits:
+            return []
+
+        # Sort by offset; deduplicate hits at the same offset (keep longest magic)
+        hits.sort(key=lambda h: (h[0], -len(h[1])))
+        deduped = []
+        last_offset = -1
+        for pos, magic, ext, description in hits:
+            if pos == last_offset:
+                continue   # already have a (longer) match at this offset
+            deduped.append((pos, magic, ext, description))
+            last_offset = pos
+
+        # Need at least 2 different signature regions to call it "multi-payload"
+        if len(deduped) < 2:
+            return []
+
+        # Build carved file descriptors
+        carved = []
+        for idx, (pos, magic, ext, description) in enumerate(deduped):
+            # Size = bytes from this offset up to the start of the next hit (or EOF)
+            next_pos = deduped[idx + 1][0] if idx + 1 < len(deduped) else len(blob)
+            size = next_pos - pos
+
+            magic_hex = ' '.join(f'{b:02X}' for b in magic)
+            filename = f'carved_{idx + 1:02d}_{description.replace(" ", "_")}{ext}'
+
+            carved.append({
+                'filename':    filename,
+                'description': description,
+                'extension':   ext,
+                'offset':      pos,
+                'size':        size,
+                'magic_hex':   magic_hex,
+            })
+
+        return carved

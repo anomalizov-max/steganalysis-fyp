@@ -107,7 +107,7 @@
                             <td>
                                 <div class="progress-bar">
                                     <div class="progress-fill {% if analysis.confidence_score > 70 %}bg-danger{% elif analysis.confidence_score > 40 %}bg-warning{% else %}bg-success{% endif %}"
-                                        style="width: {{ analysis.confidence_score }}%">
+                                        data-width="{{ analysis.confidence_score }}">
                                     </div>
                                 </div>
                                 <span class="confidence-value">{{ "%.1f"|format(analysis.confidence_score) }}%</span>
@@ -118,7 +118,9 @@
                                         class="btn btn-small">View Details</a>
                                     <button
                                         class="btn btn-small btn-delete"
-                                        onclick="confirmDelete({{ analysis.id }}, '{{ analysis.original_filename | e }}')"
+                                        data-id="{{ analysis.id }}"
+                                        data-filename="{{ analysis.original_filename | e }}"
+                                        onclick="confirmDelete(this.dataset.id, this.dataset.filename)"
                                         title="Delete this analysis">
                                         🗑 Delete
                                     </button>
@@ -287,6 +289,10 @@ function closeDeleteModal(event) {
 }
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') document.getElementById('deleteModal').style.display = 'none';
+});
+// Apply progress bar widths from data attributes (avoids Jinja in CSS context)
+document.querySelectorAll('.progress-fill[data-width]').forEach(function(el) {
+    el.style.width = el.dataset.width + '%';
 });
 </script>
 {% endblock %}

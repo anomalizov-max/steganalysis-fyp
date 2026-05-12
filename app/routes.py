@@ -145,8 +145,17 @@ def view_analysis(analysis_id):
     logs = AnalysisLog.query.filter_by(analysis_id=analysis_id)\
                             .order_by(AnalysisLog.timestamp.asc())\
                             .all()
-    
-    return render_template('view_analysis.html', analysis=analysis, logs=logs)
+
+    # Parse carved files (Step 2 file carving results)
+    carved_files = []
+    if analysis.carved_files:
+        try:
+            carved_files = json.loads(analysis.carved_files)
+        except Exception:
+            carved_files = []
+
+    return render_template('view_analysis.html', analysis=analysis, logs=logs,
+                           carved_files=carved_files)
 
 @main.route('/download/<int:analysis_id>')
 @login_required
@@ -294,16 +303,42 @@ def perform_analysis(filepath, original_filename, user_id):
             analysis.extracted_data_size = extraction_result.get('data_size')
             analysis.hidden_filename = extraction_result.get('hidden_filename')
 
-            # If we successfully extracted data, mark as suspicious if not already
-            if not analysis.has_hidden_data:
-                analysis.has_hidden_data = True
-                analysis.confidence_score = max(analysis.confidence_score or 0, 60.0)
+            # Store file-carving results (Step 2) as JSON
+            carved = extraction_result.get('carved_files') or []
+            analysis.carved_files = json.dumps(carved) if carved else None
 
+            # Content-aware threat scoring based on extracted payload type
+            # The pixel-level detectors alone can't judge payload danger — we do it here.
+            DANGEROUS_TYPES  = {'py', 'exe', 'bat', 'sh', 'ps1', 'vbs', 'js', 'cmd', 'msi', 'dll', 'scr'}
+            SUSPICIOUS_TYPES = {'zip', 'rar', '7z', 'tar', 'gz', 'pdf', 'doc', 'docx', 'xls', 'xlsx'}
+
+            hidden_ext = ''
+            if analysis.hidden_filename:
+                parts = analysis.hidden_filename.rsplit('.', 1)
+                hidden_ext = parts[-1].lower() if len(parts) > 1 else ''
+            elif analysis.extracted_data_type:
+                hidden_ext = analysis.extracted_data_type.lower().strip('.')
+
+            if hidden_ext in DANGEROUS_TYPES:
+                # Executable / script payload — very high threat
+                threat_floor = 90.0
+            elif hidden_ext in SUSPICIOUS_TYPES:
+                # Archive or document — medium-high threat
+                threat_floor = 80.0
+            else:
+                # Unknown payload type — still suspicious
+                threat_floor = 70.0
+
+            analysis.has_hidden_data = True
+            analysis.confidence_score = max(analysis.confidence_score or 0, threat_floor)
+
+            carved_count = len(carved)
             log_analysis(analysis, 'WARNING', 'Data extraction successful',
                        {'method': extraction_result.get('method'),
                         'type': extraction_result.get('data_type'),
                         'size': extraction_result.get('data_size'),
-                        'hidden_file': extraction_result.get('hidden_filename')})
+                        'hidden_file': extraction_result.get('hidden_filename'),
+                        'carved_files_found': carved_count})
         else:
             log_analysis(analysis, 'INFO', 'No extractable data found', {})
         

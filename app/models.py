@@ -7,7 +7,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-class User(UserMixin, db.Model):
+class User(UserMixin, db.Model):  # type: ignore[misc]
     """User model for authentication and authorization"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False, index=True)
@@ -16,22 +16,25 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
     is_active = db.Column(db.Boolean, default=True)
-    
+
     # Relationships
     analyses = db.relationship('Analysis', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    
+
+    def __init__(self, username: str, email: str, **kwargs):
+        super().__init__(username=username, email=email, **kwargs)  # type: ignore[call-arg]
+
     def set_password(self, password):
         """Hash and set user password"""
         self.password_hash = generate_password_hash(password)
-    
+
     def check_password(self, password):
         """Verify password against hash"""
         return check_password_hash(self.password_hash, password)
-    
+
     def __repr__(self):
         return f'<User {self.username}>'
 
-class Analysis(db.Model):
+class Analysis(db.Model):  # type: ignore[misc]
     """Analysis model to store file analysis results"""
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
@@ -40,17 +43,17 @@ class Analysis(db.Model):
     file_path = db.Column(db.String(512), nullable=False)
     file_size = db.Column(db.Integer)
     file_type = db.Column(db.String(10))
-    
+
     # Analysis results
     analyzed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     has_hidden_data = db.Column(db.Boolean, default=False)
     confidence_score = db.Column(db.Float)
-    
+
     # Detection method results
     lsb_detection_score = db.Column(db.Float)
     statistical_score = db.Column(db.Float)
     ml_detection_score = db.Column(db.Float)
-    
+
     # Extracted data info
     extracted_data_available = db.Column(db.Boolean, default=False)
     extracted_data_path = db.Column(db.String(512))
@@ -59,17 +62,26 @@ class Analysis(db.Model):
     extracted_data_size = db.Column(db.Integer)  # Size in bytes
     extraction_method = db.Column(db.String(50))
     hidden_filename = db.Column(db.String(255))  # Name of the file hidden inside the image
-    
+    carved_files = db.Column(db.Text)            # JSON list of carved file descriptors (multi-payload)
+
     # Additional metadata
     image_width = db.Column(db.Integer)
     image_height = db.Column(db.Integer)
     image_mode = db.Column(db.String(20))
     analysis_notes = db.Column(db.Text)
-    
+
+    def __init__(self, user_id: int, filename: str, original_filename: str, file_path: str, **kwargs):
+        self.user_id = user_id
+        self.filename = filename
+        self.original_filename = original_filename
+        self.file_path = file_path
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
     def __repr__(self):
         return f'<Analysis {self.id} - {self.original_filename}>'
 
-class AnalysisLog(db.Model):
+class AnalysisLog(db.Model):  # type: ignore[misc]
     """Detailed logs for each analysis operation"""
     id = db.Column(db.Integer, primary_key=True)
     analysis_id = db.Column(db.Integer, db.ForeignKey('analysis.id'), nullable=False, index=True)
@@ -77,8 +89,16 @@ class AnalysisLog(db.Model):
     log_level = db.Column(db.String(20))  # INFO, WARNING, ERROR
     message = db.Column(db.Text)
     details = db.Column(db.Text)  # JSON formatted additional details
-    
+
     analysis = db.relationship('Analysis', backref=db.backref('logs', lazy='dynamic', cascade='all, delete-orphan'))
-    
+
+    def __init__(self, analysis_id: int, log_level: str, message: str, details=None, **kwargs):
+        self.analysis_id = analysis_id
+        self.log_level = log_level
+        self.message = message
+        self.details = details
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
     def __repr__(self):
         return f'<AnalysisLog {self.id} - {self.log_level}>'

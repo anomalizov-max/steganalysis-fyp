@@ -113,6 +113,68 @@
         {% if analysis.extracted_data_available %}
         <div class="extraction-card">
             <h2>🔓 Extracted Hidden Data</h2>
+
+            {% if carved_files and carved_files|length > 0 %}
+            {# ── Step 2: Multi-payload File Carving view ── #}
+            <p class="extraction-subtitle">
+                🔬 <strong>File Carving detected {{ carved_files|length }} embedded file(s)</strong>
+                inside the extracted blob. Each payload was identified by its file-signature magic bytes:
+            </p>
+
+            <div class="detected-files-list">
+                {% for cf in carved_files %}
+                <div class="detected-file-row carved-row">
+                    <div class="det-file-icon">
+                        {% set ext = cf.extension|lower %}
+                        {% if ext in ['.exe', '.dll', '.elf'] %}⚙️
+                        {% elif ext in ['.zip', '.rar', '.7z', '.gz', '.cab'] %}📦
+                        {% elif ext == '.pdf' %}📕
+                        {% elif ext == '.doc' %}📝
+                        {% elif ext in ['.png', '.jpg', '.gif', '.bmp'] %}🖼️
+                        {% elif ext in ['.mp3', '.wav'] %}🎵
+                        {% elif ext in ['.xml', '.html', '.json'] %}📋
+                        {% else %}📁{% endif %}
+                    </div>
+                    <div class="det-file-info">
+                        <span class="det-file-name">{{ cf.filename }}</span>
+                        <div class="det-file-meta">
+                            <span class="det-badge det-type">{{ cf.description }}</span>
+                            <span class="det-badge det-size">
+                                {% if cf.size >= 1024 %}
+                                    {{ "%.2f"|format(cf.size / 1024) }} KB
+                                {% else %}
+                                    {{ cf.size }} bytes
+                                {% endif %}
+                            </span>
+                            <span class="det-badge det-magic" title="Magic bytes (file signature)">
+                                🔑 {{ cf.magic_hex }}
+                            </span>
+                            <span class="det-badge det-offset">@ offset {{ cf.offset }}</span>
+                        </div>
+                    </div>
+                    <div class="det-file-action">
+                        {# Individual carved files are not separately saved, only the full blob is #}
+                        {% if loop.first %}
+                        <a href="{{ url_for('main.download_extracted', analysis_id=analysis.id) }}"
+                           class="btn btn-primary btn-small" title="Download full blob containing all carved files">
+                           ⬇️ Download Blob
+                        </a>
+                        {% else %}
+                        <span class="carved-note-pill">Inside blob</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <p class="det-note">
+                ⚠️ <strong>Multi-payload detected.</strong>
+                This image contained a blob with {{ carved_files|length }} distinct file signatures.
+                Download the blob and use a tool like <em>binwalk</em> to extract individual files.
+            </p>
+
+            {% else %}
+            {# ── Single-file fallback (original view) ── #}
             <p class="extraction-subtitle">The following file(s) were detected hidden inside this image:</p>
 
             <div class="detected-files-list">
@@ -164,6 +226,7 @@
             </div>
 
             <p class="det-note">⚠️ This file was hidden inside the scanned image using steganography techniques.</p>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -234,6 +297,19 @@
 .det-type  { background: rgba(99,102,241,0.2); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.35); }
 .det-size  { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
 .det-method{ background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+.det-magic { background: rgba(239,68,68,0.12);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); font-family: monospace; }
+.det-offset{ background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); font-family: monospace; }
+.carved-row { border-left: 3px solid rgba(239,68,68,0.5); }
+.carved-note-pill {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    background: rgba(148,163,184,0.1);
+    color: #64748b;
+    border: 1px solid rgba(148,163,184,0.2);
+    white-space: nowrap;
+}
 .det-file-action {
     flex-shrink: 0;
 }
