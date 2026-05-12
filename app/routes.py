@@ -32,17 +32,40 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
-        
+
+        # --- Account lockout check ---
+        if user and user.is_locked_out():
+            remaining = int((user.locked_until - datetime.utcnow()).total_seconds() // 60) + 1
+            flash(
+                f'Account locked due to too many failed attempts. '
+                f'Please try again in {remaining} minute(s).',
+                'danger'
+            )
+            return render_template('login.html', form=form)
+
         if user is None or not user.check_password(form.password.data):
+            # Record the failed attempt (and lock if threshold reached)
+            if user:
+                user.record_failed_login()
+                db.session.commit()
+                if user.is_locked_out():
+                    flash(
+                        'Account locked due to too many failed attempts. '
+                        f'Please try again in {user.LOCKOUT_MINUTES} minute(s).',
+                        'danger'
+                    )
+                    return render_template('login.html', form=form)
             flash('Invalid username or password', 'danger')
-            return redirect(url_for('main.login'))
-        
+            return render_template('login.html', form=form)
+
+        # Successful login — reset lockout counter
+        user.reset_failed_logins()
         login_user(user, remember=form.remember_me.data)
         user.last_login = datetime.utcnow()
         db.session.commit()
-        
+
         flash('Login successful!', 'success')
-        
+
         # Redirect to next page if specified
         next_page = request.args.get('next')
         if next_page:

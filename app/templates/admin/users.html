@@ -1,0 +1,115 @@
+{% extends 'admin/base.html' %}
+{% block title %}User Management{% endblock %}
+{% block page_title %}👥 User Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>All Registered Users <span style="color:var(--muted); font-weight:400; font-size:0.85rem;">({{ users|length }} total)</span></span>
+        <input class="search-bar" id="userSearch" type="text" placeholder="🔍  Search username or email…" oninput="filterTable()">
+    </div>
+    <div class="table-wrap">
+        <table id="userTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Registered</th>
+                    <th>Last Login</th>
+                    <th>Analyses</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in users %}
+            <tr>
+                <td style="color:var(--muted)">{{ u.id }}</td>
+                <td>
+                    <span style="font-weight:600">{{ u.username }}</span>
+                    {% if u.id == current_user.id %}
+                        <span class="badge badge-purple" style="margin-left:4px;">You</span>
+                    {% endif %}
+                </td>
+                <td style="color:var(--muted)">{{ u.email }}</td>
+                <td style="font-size:0.8rem; color:var(--muted);">
+                    {{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}
+                </td>
+                <td style="font-size:0.8rem; color:var(--muted);">
+                    {{ u.last_login.strftime('%d %b %Y %H:%M') if u.last_login else 'Never' }}
+                </td>
+                <td>
+                    <span class="badge badge-info">{{ u.analyses.count() }}</span>
+                </td>
+                <td>
+                    {% if u.is_admin %}
+                        <span class="badge badge-purple">Admin</span>
+                    {% else %}
+                        <span class="badge badge-muted">User</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.is_locked_out() %}
+                        <span class="badge badge-danger">🔒 Locked</span>
+                    {% else %}
+                        <span class="badge badge-success">✓ Active</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="btn-group">
+                        {% if u.id != current_user.id %}
+
+                        <!-- Lock / Unlock -->
+                        <form method="POST" action="{{ url_for('admin.toggle_lock', user_id=u.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            {% if u.is_locked_out() %}
+                                <button class="btn btn-success btn-sm" title="Unlock Account">🔓</button>
+                            {% else %}
+                                <button class="btn btn-warning btn-sm" title="Lock Account">🔒</button>
+                            {% endif %}
+                        </form>
+
+                        <!-- Grant / Revoke Admin -->
+                        <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=u.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            {% if u.is_admin %}
+                                <button class="btn btn-warning btn-sm" title="Revoke Admin">👤</button>
+                            {% else %}
+                                <button class="btn btn-outline btn-sm" title="Make Admin">⭐</button>
+                            {% endif %}
+                        </form>
+
+                        <!-- Delete -->
+                        <form method="POST" action="{{ url_for('admin.delete_user', user_id=u.id) }}" style="display:inline;"
+                              onsubmit="return confirm('Delete user {{ u.username }} and ALL their data? This cannot be undone.')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-danger btn-sm" title="Delete User">🗑</button>
+                        </form>
+
+                        {% else %}
+                        <span style="color:var(--muted); font-size:0.75rem;">—</span>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" style="text-align:center; color:var(--muted); padding:40px;">No users found.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterTable() {
+    const q = document.getElementById('userSearch').value.toLowerCase();
+    document.querySelectorAll('#userTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

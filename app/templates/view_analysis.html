@@ -80,7 +80,7 @@
                         </div>
                         <div class="progress-bar">
                             <div class="progress-fill {% if analysis.lsb_detection_score > 70 %}bg-danger{% elif analysis.lsb_detection_score > 40 %}bg-warning{% else %}bg-success{% endif %}"
-                                style="width: {{ analysis.lsb_detection_score }}%"></div>
+                                data-width="{{ analysis.lsb_detection_score }}"></div>
                         </div>
                     </div>
 
@@ -91,7 +91,7 @@
                         </div>
                         <div class="progress-bar">
                             <div class="progress-fill {% if analysis.statistical_score > 70 %}bg-danger{% elif analysis.statistical_score > 40 %}bg-warning{% else %}bg-success{% endif %}"
-                                style="width: {{ analysis.statistical_score }}%"></div>
+                                data-width="{{ analysis.statistical_score }}"></div>
                         </div>
                     </div>
 
@@ -102,7 +102,7 @@
                         </div>
                         <div class="progress-bar">
                             <div class="progress-fill {% if analysis.ml_detection_score > 70 %}bg-danger{% elif analysis.ml_detection_score > 40 %}bg-warning{% else %}bg-success{% endif %}"
-                                style="width: {{ analysis.ml_detection_score }}%"></div>
+                                data-width="{{ analysis.ml_detection_score }}"></div>
                         </div>
                     </div>
                 </div>
@@ -324,5 +324,11 @@
 }
 </style>
 
+<script>
+    // Apply progress bar widths from data-width attributes
+    document.querySelectorAll('.progress-fill[data-width]').forEach(function(el) {
+        el.style.width = el.getAttribute('data-width') + '%';
+    });
+</script>
 
 {% endblock %}

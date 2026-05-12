@@ -34,6 +34,9 @@ def create_app(config_class=Config):
     from app.routes import main
     app.register_blueprint(main)
 
+    from app.admin_routes import admin
+    app.register_blueprint(admin)
+
     # Auto-migrate: add any missing columns to existing tables
     with app.app_context():
         _auto_migrate_db()
@@ -46,7 +49,13 @@ def create_app(config_class=Config):
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
-    
+
+    # Inject current datetime into all templates
+    @app.context_processor
+    def inject_now():
+        from datetime import datetime
+        return {'now': datetime.utcnow()}
+
     return app
 
 from app import models
@@ -67,6 +76,11 @@ def _auto_migrate_db():
         'analysis': [
             ('hidden_filename', 'VARCHAR(255)'),
             ('carved_files',    'TEXT'),
+        ],
+        'user': [
+            ('failed_login_attempts', 'INTEGER DEFAULT 0 NOT NULL'),
+            ('locked_until',          'DATETIME'),
+            ('is_admin',              'BOOLEAN DEFAULT 0 NOT NULL'),
         ],
     }
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from app import db, login_manager
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -17,11 +17,48 @@ class User(UserMixin, db.Model):  # type: ignore[misc]
     last_login = db.Column(db.DateTime)
     is_active = db.Column(db.Boolean, default=True)
 
+    # Account lockout fields
+    failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime, nullable=True)  # None = not locked
+
+    # Admin flag
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+
     # Relationships
     analyses = db.relationship('Analysis', backref='user', lazy='dynamic', cascade='all, delete-orphan')
 
     def __init__(self, username: str, email: str, **kwargs):
-        super().__init__(username=username, email=email, **kwargs)  # type: ignore[call-arg]
+        self.username = username
+        self.email = email
+        self.failed_login_attempts = 0
+        self.locked_until = None
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    # ------------------------------------------------------------------
+    # Lockout helpers
+    # ------------------------------------------------------------------
+    MAX_FAILED_ATTEMPTS = 5
+    LOCKOUT_MINUTES = 15
+
+    def is_locked_out(self) -> bool:
+        """Return True if the account is currently locked."""
+        if self.locked_until is None:
+            return False
+        now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
+        return now < self.locked_until
+
+    def record_failed_login(self):
+        """Increment the failed-login counter and lock the account if threshold reached."""
+        self.failed_login_attempts = (self.failed_login_attempts or 0) + 1
+        if self.failed_login_attempts >= self.MAX_FAILED_ATTEMPTS:
+            from datetime import timedelta
+            self.locked_until = datetime.utcnow() + timedelta(minutes=self.LOCKOUT_MINUTES)
+
+    def reset_failed_logins(self):
+        """Clear the counter and lockout after a successful login."""
+        self.failed_login_attempts = 0
+        self.locked_until = None
 
     def set_password(self, password):
         """Hash and set user password"""
