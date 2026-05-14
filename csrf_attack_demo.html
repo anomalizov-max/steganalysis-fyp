@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Totally Safe Website (Win a Free iPhone!)</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f0f0f0; }
+        .hacker-box { border: 2px dashed red; padding: 20px; background-color: white; display: inline-block; }
+        h1 { color: #ff0000; }
+    </style>
+</head>
+<body>
+    <div class="hacker-box">
+        <h1>🎉 Congratulations! You won! 🎉</h1>
+        <p>Click the button below to claim your prize.</p>
+        
+        <!-- This is the CSRF Attack! -->
+        <!-- It sends a POST request to your Admin panel to lock User ID 2 -->
+        <!-- Notice how it does NOT have the correct csrf_token! -->
+        <form action="http://127.0.0.1:5000/admin/users/2/toggle-lock" method="POST">
+            <!-- The hacker leaves out the CSRF token, or tries a fake one -->
+            <input type="hidden" name="csrf_token" value="fake_hacker_token_12345">
+            <button type="submit" style="padding: 15px 30px; font-size: 20px; background-color: green; color: white; cursor: pointer; border: none; border-radius: 5px;">
+                Claim Prize Now!
+            </button>
+        </form>
+    </div>
+
+    <p style="margin-top: 50px; color: #666; font-size: 12px;">
+        *Behind the scenes, clicking this button attempts to secretly send an admin command to lock User ID 2 on your Steganalysis system.*
+    </p>
+</body>
+</html>

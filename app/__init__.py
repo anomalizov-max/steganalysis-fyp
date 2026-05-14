@@ -40,6 +40,7 @@ def create_app(config_class=Config):
     # Auto-migrate: add any missing columns to existing tables
     with app.app_context():
         _auto_migrate_db()
+        _seed_default_admin()
     
     # Security headers
     @app.after_request
@@ -60,6 +61,28 @@ def create_app(config_class=Config):
 
 from app import models
 
+
+def _seed_default_admin():
+    """
+    Ensures that a default admin account exists in the database.
+    This is especially useful for cloud deployments where the SQLite DB is empty.
+    """
+    from app.models import User
+    
+    # Check if any admin exists
+    admin_exists = User.query.filter_by(is_admin=True).first()
+    if not admin_exists:
+        try:
+            # Create default admin account
+            default_admin = User(username='admin', email='admin@stegdetect.local')
+            default_admin.set_password('admin123')
+            default_admin.is_admin = True
+            db.session.add(default_admin)
+            db.session.commit()
+            print("[seed] Created default admin account: username='admin', password='admin123'")
+        except Exception as e:
+            db.session.rollback()
+            print(f"[seed] Warning: Failed to create default admin account: {e}")
 
 def _auto_migrate_db():
     """
